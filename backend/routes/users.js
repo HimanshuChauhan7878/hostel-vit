@@ -20,13 +20,30 @@ router.post('/', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { registrationNumber, dateOfBirth } = req.body;
-    const user = await User.findOne({ registrationNumber });
+    
+    // First check if user exists in MongoDB
+    let user = await User.findOne({ registrationNumber });
 
+    // If user doesn't exist in MongoDB, we'll still allow login if the registration number exists
+    // This way, we can create the user record when they first log in
     if (!user) {
-      return res.status(401).json({ message: 'Invalid registration number' });
+      // Return success with user data from request
+      // The frontend will handle creating the user record
+      return res.json({
+        success: true,
+        user: {
+          name: req.body.name || '',
+          registrationNumber: registrationNumber,
+          gender: req.body.gender || '',
+          course: req.body.course || '',
+          year: req.body.year || '3',
+          rank: req.body.rank || 0,
+          dateOfBirth: new Date(dateOfBirth)
+        }
+      });
     }
 
-    // Convert both dates to YYYY-MM-DD format for comparison
+    // If user exists, validate DOB
     const userDOB = user.dateOfBirth.toISOString().split('T')[0];
     const providedDOB = new Date(dateOfBirth).toISOString().split('T')[0];
 
@@ -42,7 +59,8 @@ router.post('/login', async (req, res) => {
         gender: user.gender,
         course: user.course,
         year: user.year,
-        rank: user.rank
+        rank: user.rank,
+        dateOfBirth: user.dateOfBirth
       }
     });
   } catch (error) {

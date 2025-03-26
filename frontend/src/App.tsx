@@ -166,23 +166,7 @@ function App() {
         // Convert the worksheet to JSON
         const excelData = XLSX.utils.sheet_to_json<any>(worksheet);
         
-        // Map the data to our Student interface and save to MongoDB
-        for (const row of excelData) {
-          const regNo = row['Reg No'] || '';
-          const userData = {
-            name: row['Name'] || '',
-            registrationNumber: regNo,
-            gender: row['Gender'] || '',
-            course: getCourseFromRegNo(regNo),
-            year: '3',
-            rank: parseInt(row['Rank']) || 0,
-            dateOfBirth: new Date('1111-01-01'), // Set default DOB for all students
-          };
-          
-          await saveUserToMongoDB(userData);
-        }
-        
-        // Map the data for frontend state
+        // Map the data to our Student interface
         const students: Student[] = excelData.map((row, index) => ({
           id: (index + 1).toString(),
           name: row['Name'] || '',
@@ -190,7 +174,7 @@ function App() {
           gender: row['Gender'] || '',
           course: getCourseFromRegNo(row['Reg No'] || ''),
           year: '3',
-          rank: parseInt(row['Rank']) || 0,
+          rank: parseInt(row['Rank']) || 0
         }));
         
         setAllStudents(students);
@@ -269,12 +253,12 @@ function App() {
       if (user) {
         // Create a complete user profile with all available data
         const userProfile: UserProfile = {
-          name: studentData.name,
-          registrationNumber: studentData.registrationNumber,
-          gender: studentData.gender,
-          course: studentData.course,
-          year: studentData.year,
-          rank: studentData.rank,
+          name: user.name,
+          registrationNumber: user.registrationNumber,
+          gender: user.gender,
+          course: user.course,
+          year: user.year,
+          rank: user.rank,
           email: user.email || '',
           phone: user.phone || '',
           address: user.address || ''
@@ -306,6 +290,14 @@ function App() {
     e.preventDefault();
     
     try {
+      // Find the student in the Excel data first
+      const student = allStudents.find(s => s.registrationNumber === loginData.applicationNo);
+      
+      if (!student) {
+        setErrorMessage("Invalid application number. Please check and try again.");
+        return;
+      }
+
       const response = await fetch('http://localhost:5000/api/users/login', {
         method: 'POST',
         headers: {
@@ -314,6 +306,11 @@ function App() {
         body: JSON.stringify({
           registrationNumber: loginData.applicationNo,
           dateOfBirth: loginData.dob,
+          name: student.name,
+          gender: student.gender,
+          course: student.course,
+          year: student.year,
+          rank: student.rank
         }),
       });
 
@@ -324,17 +321,30 @@ function App() {
         return;
       }
 
+      // If login is successful, save user data to MongoDB
+      const userData = {
+        name: student.name,
+        registrationNumber: student.registrationNumber,
+        gender: student.gender,
+        course: student.course,
+        year: student.year,
+        rank: student.rank,
+        dateOfBirth: new Date(loginData.dob),
+      };
+      
+      await saveUserToMongoDB(userData);
+      
       setIsLoggedIn(true);
       setStep(1);
       setStudentData({
-        name: data.user.name,
-        registrationNumber: data.user.registrationNumber,
-        gender: data.user.gender,
-        course: getCourseFromRegNo(data.user.registrationNumber),
-        year: data.user.year,
-        rank: data.user.rank,
+        name: student.name,
+        registrationNumber: student.registrationNumber,
+        gender: student.gender,
+        course: student.course,
+        year: student.year,
+        rank: student.rank,
       });
-      await fetchUserProfile(data.user.registrationNumber);
+      await fetchUserProfile(student.registrationNumber);
       setErrorMessage(null);
     } catch (error) {
       console.error('Login error:', error);
